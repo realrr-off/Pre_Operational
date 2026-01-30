@@ -1,1 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Volume Explorer - Conservation of Volume</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background: radial-gradient(circle, #f0f9ff 0%, #e0f2fe 100%);
+            touch-action: none;
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .container-glass {
+            background: rgba(255, 255, 255, 0.3);
+            border: 4px solid rgba(255, 255, 255, 0.6);
+            border-top: none;
+            border-bottom-left-radius: 12px;
+            border-bottom-right-radius: 12px;
+            position: relative;
+            transition: transform 0.3s ease;
+        }
+        .liquid {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background: linear-gradient(180deg, #38bdf8 0%, #0284c7 100%);
+            border-bottom-left-radius: 8px;
+            border-bottom-right-radius: 8px;
+            transition: height 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .liquid::after {
+            content: '';
+            position: absolute;
+            top: -5px;
+            left: 0;
+            width: 100%;
+            height: 10px;
+            background: rgba(255, 255, 255, 0.4);
+            border-radius: 50%;
+        }
+        .beaker-label {
+            position: absolute;
+            top: -40px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-weight: bold;
+            color: #0369a1;
+            white-space: nowrap;
+        }
+        .dragging {
+            z-index: 50;
+            opacity: 0.8;
+            cursor: grabbing;
+        }
+        .drop-zone-active {
+            outline: 4px dashed #38bdf8;
+            outline-offset: 10px;
+        }
+        @keyframes splash {
+            0% { transform: scale(1); opacity: 0; }
+            50% { transform: scale(1.5); opacity: 0.5; }
+            100% { transform: scale(2); opacity: 0; }
+        }
+        .splash-effect {
+            position: absolute;
+            pointer-events: none;
+            background: #38bdf8;
+            border-radius: 50%;
+            animation: splash 0.5s ease-out forwards;
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-between min-h-screen p-4">
+
+    <!-- Header -->
+    <div class="text-center mt-4">
+        <h1 class="text-4xl font-black text-sky-700 mb-2">Volume Explorer 🧪</h1>
+        <p class="text-lg text-sky-600 font-medium">Pour the juice into different cups. Does the amount change?</p>
+    </div>
+
+    <!-- Main Game Area -->
+    <div id="game-container" class="relative w-full max-w-4xl h-[500px] flex items-end justify-around pb-20">
+        
+        <!-- Source Beaker (Middle) -->
+        <div id="beaker-main" class="container-glass w-32 h-64 mb-10 flex flex-col justify-end shadow-xl cursor-grab active:cursor-grabbing" draggable="true">
+            <div class="beaker-label text-xl">The "Start" Cup</div>
+            <div id="liquid-main" class="liquid h-1/2"></div>
+        </div>
+
+        <!-- Target Containers (Visual targets) -->
+        <div id="target-tall" class="container-glass w-16 h-80 border-sky-200/50 flex flex-col justify-end opacity-60">
+            <div class="beaker-label">The Tall Cup</div>
+            <div id="liquid-tall" class="liquid h-0"></div>
+        </div>
+
+        <div id="target-wide" class="container-glass w-64 h-32 border-sky-200/50 flex flex-col justify-end opacity-60">
+            <div class="beaker-label">The Wide Cup</div>
+            <div id="liquid-wide" class="liquid h-0"></div>
+        </div>
+
+    </div>
+
+    <!-- Decision UI (Hidden until pouring is done) -->
+    <div id="decision-ui" class="hidden flex flex-col items-center gap-6 mb-12 animate-bounce">
+        <h2 class="text-2xl font-bold text-sky-900 text-center">Is there more, less, or the same amount of juice now?</h2>
+        <div class="flex gap-4">
+            <button onclick="checkAnswer('more')" class="px-8 py-4 bg-red-400 hover:bg-red-500 text-white font-black rounded-2xl shadow-lg transition-transform active:scale-95">MORE!</button>
+            <button onclick="checkAnswer('same')" class="px-8 py-4 bg-green-500 hover:bg-green-600 text-white font-black rounded-2xl shadow-lg transition-transform active:scale-95">THE SAME</button>
+            <button onclick="checkAnswer('less')" class="px-8 py-4 bg-blue-400 hover:bg-blue-500 text-white font-black rounded-2xl shadow-lg transition-transform active:scale-95">LESS!</button>
+        </div>
+    </div>
+
+    <!-- Feedback Message -->
+    <div id="feedback" class="fixed inset-0 flex items-center justify-center bg-black/40 hidden z-[100]">
+        <div class="bg-white p-8 rounded-3xl text-center max-w-sm shadow-2xl mx-4">
+            <div id="feedback-emoji" class="text-6xl mb-4">🌟</div>
+            <h3 id="feedback-title" class="text-3xl font-bold mb-2">Great Thinking!</h3>
+            <p id="feedback-text" class="text-gray-600 mb-6">Even though it looks taller, the amount of juice didn't change.</p>
+            <button onclick="resetGame()" class="w-full py-3 bg-sky-600 text-white font-bold rounded-xl hover:bg-sky-700">Play Again</button>
+        </div>
+    </div>
+
+    <script>
+        const beakerMain = document.getElementById('beaker-main');
+        const liquidMain = document.getElementById('liquid-main');
+        const decisionUI = document.getElementById('decision-ui');
+        const feedback = document.getElementById('feedback');
+        
+        let currentTarget = null;
+        let isPoured = false;
+        const TOTAL_VOLUME = 50; // Percentage of the main beaker
+
+        // Drag and Drop Logic
+        beakerMain.addEventListener('dragstart', (e) => {
+            if (isPoured) {
+                e.preventDefault();
+                return;
+            }
+            beakerMain.classList.add('dragging');
+        });
+
+        beakerMain.addEventListener('dragend', () => {
+            beakerMain.classList.remove('dragging');
+        });
+
+        document.querySelectorAll('.container-glass').forEach(container => {
+            if (container.id === 'beaker-main') return;
+
+            container.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                container.classList.add('drop-zone-active');
+            });
+
+            container.addEventListener('dragleave', () => {
+                container.classList.remove('drop-zone-active');
+            });
+
+            container.addEventListener('drop', (e) => {
+                e.preventDefault();
+                container.classList.remove('drop-zone-active');
+                pourLiquid(container);
+            });
+        });
+
+        // Touch Support
+        let touchStartX, touchStartY;
+        beakerMain.addEventListener('touchstart', (e) => {
+            if (isPoured) return;
+            const touch = e.touches[0];
+            touchStartX = touch.clientX - beakerMain.offsetLeft;
+            touchStartY = touch.clientY - beakerMain.offsetTop;
+        }, {passive: true});
+
+        beakerMain.addEventListener('touchmove', (e) => {
+            if (isPoured) return;
+            const touch = e.touches[0];
+            beakerMain.style.position = 'fixed';
+            beakerMain.style.left = (touch.clientX - touchStartX) + 'px';
+            beakerMain.style.top = (touch.clientY - touchStartY) + 'px';
+            beakerMain.classList.add('dragging');
+            
+            // Check collision with targets
+            checkTouchCollision(touch.clientX, touch.clientY);
+        }, {passive: true});
+
+        beakerMain.addEventListener('touchend', (e) => {
+            if (isPoured) return;
+            const touch = e.changedTouches[0];
+            const target = checkTouchCollision(touch.clientX, touch.clientY);
+            
+            if (target) {
+                pourLiquid(target);
+            } else {
+                resetBeakerPosition();
+            }
+        });
+
+        function checkTouchCollision(x, y) {
+            const targets = ['target-tall', 'target-wide'];
+            for (let id of targets) {
+                const el = document.getElementById(id);
+                const rect = el.getBoundingClientRect();
+                if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+                    el.classList.add('drop-zone-active');
+                    return el;
+                } else {
+                    el.classList.remove('drop-zone-active');
+                }
+            }
+            return null;
+        }
+
+        function resetBeakerPosition() {
+            beakerMain.style.position = '';
+            beakerMain.style.left = '';
+            beakerMain.style.top = '';
+            beakerMain.classList.remove('dragging');
+        }
+
+        function pourLiquid(target) {
+            isPoured = true;
+            currentTarget = target;
+            
+            // Visual pouring effect
+            liquidMain.style.height = '0%';
+            target.style.opacity = '1';
+            
+            // Calculate new height based on container proportions
+            // The "Main" is 128px wide.
+            // Tall is 64px wide (half as wide, so double height)
+            // Wide is 256px wide (double as wide, so half height)
+            let newHeight;
+            if (target.id === 'target-tall') {
+                newHeight = 80; // Looks much fuller
+            } else {
+                newHeight = 25; // Looks much shallower
+            }
+
+            const targetLiquid = target.querySelector('.liquid');
+            
+            setTimeout(() => {
+                targetLiquid.style.height = newHeight + '%';
+                createSplash(target);
+                showDecisionUI();
+            }, 300);
+
+            resetBeakerPosition();
+            beakerMain.style.opacity = '0.4';
+        }
+
+        function createSplash(target) {
+            const rect = target.getBoundingClientRect();
+            for(let i=0; i<5; i++) {
+                const splash = document.createElement('div');
+                splash.className = 'splash-effect';
+                splash.style.left = (Math.random() * rect.width) + 'px';
+                splash.style.top = '0px';
+                splash.style.width = (Math.random() * 10 + 5) + 'px';
+                splash.style.height = splash.style.width;
+                target.appendChild(splash);
+                setTimeout(() => splash.remove(), 500);
+            }
+        }
+
+        function showDecisionUI() {
+            decisionUI.classList.remove('hidden');
+        }
+
+        function checkAnswer(answer) {
+            const title = document.getElementById('feedback-title');
+            const text = document.getElementById('feedback-text');
+            const emoji = document.getElementById('feedback-emoji');
+
+            if (answer === 'same') {
+                emoji.innerText = '🌟';
+                title.innerText = 'Exactly!';
+                text.innerText = "You're right! No matter what the cup looks like, we didn't add any or take any away. It's the same amount!";
+            } else {
+                emoji.innerText = '🧐';
+                title.innerText = 'Not Quite!';
+                text.innerText = "It looks different because the cup is a different shape, but we didn't add any juice. It's actually still the same!";
+            }
+            
+            feedback.classList.remove('hidden');
+        }
+
+        function resetGame() {
+            isPoured = false;
+            currentTarget = null;
+            liquidMain.style.height = '50%';
+            beakerMain.style.opacity = '1';
+            
+            document.querySelectorAll('.liquid').forEach(l => {
+                if (l.id !== 'liquid-main') l.style.height = '0%';
+            });
+            
+            document.querySelectorAll('.container-glass').forEach(c => {
+                if (c.id !== 'beaker-main') c.style.opacity = '0.6';
+            });
+
+            decisionUI.classList.add('hidden');
+            feedback.classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
 
