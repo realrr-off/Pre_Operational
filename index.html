@@ -9,8 +9,11 @@
         body {
             background: radial-gradient(circle, #f0f9ff 0%, #e0f2fe 100%);
             touch-action: none;
-            overflow: hidden;
+            overflow: hidden; /* Prevent body scroll */
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
         }
         .container-glass {
             background: rgba(255, 255, 255, 0.3);
@@ -43,12 +46,13 @@
         }
         .beaker-label {
             position: absolute;
-            top: -40px;
+            top: -30px;
             left: 50%;
             transform: translateX(-50%);
             font-weight: bold;
             color: #0369a1;
             white-space: nowrap;
+            font-size: 0.875rem;
         }
         .dragging {
             z-index: 50;
@@ -71,54 +75,93 @@
             border-radius: 50%;
             animation: splash 0.5s ease-out forwards;
         }
+
+        /* Slider Styling */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: #0284c7;
+            cursor: pointer;
+            margin-top: -6px;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 8px;
+            cursor: pointer;
+            background: #bae6fd;
+            border-radius: 4px;
+        }
+
+        /* Beaker sizing constraints to avoid overflow */
+        #beaker-main { width: 100px; height: 180px; }
+        #target-tall { width: 50px; height: 240px; }
+        #target-wide { width: 200px; height: 100px; }
     </style>
 </head>
-<body class="flex flex-col items-center justify-between min-h-screen p-4">
+<body class="p-4">
 
     <!-- Header -->
-    <div class="text-center mt-4">
-        <h1 class="text-4xl font-black text-sky-700 mb-2">Volume Explorer 🧪</h1>
-        <p class="text-lg text-sky-600 font-medium">Pour the juice into different cups. Does the amount change?</p>
+    <header class="text-center mb-2 shrink-0">
+        <h1 class="text-2xl md:text-3xl font-black text-sky-700">Volume Explorer 🧪</h1>
+        <p class="text-sm md:text-base text-sky-600 font-medium">Drag the cup to pour the juice. Does it change?</p>
+    </header>
+
+    <!-- Volume Control Slider -->
+    <div id="controls" class="bg-white/50 p-3 rounded-xl shadow-sm border border-white/60 w-full max-w-md mx-auto mb-4 shrink-0">
+        <div class="flex justify-between items-center mb-1">
+            <span class="text-sky-800 font-bold uppercase text-[10px] tracking-widest">Initial Juice</span>
+            <span id="volume-display" class="bg-sky-600 text-white px-2 py-0.5 rounded text-xs font-bold">50%</span>
+        </div>
+        <input type="range" id="volume-slider" min="10" max="90" value="50" class="w-full">
     </div>
 
     <!-- Main Game Area -->
-    <div id="game-container" class="relative w-full max-w-4xl h-[500px] flex items-end justify-around pb-20">
+    <main id="game-container" class="relative flex-grow w-full max-w-4xl mx-auto flex items-end justify-around pb-12 overflow-visible">
         
-        <!-- Source Beaker (Middle) -->
-        <div id="beaker-main" class="container-glass w-32 h-64 mb-10 flex flex-col justify-end shadow-xl cursor-grab active:cursor-grabbing" draggable="true">
-            <div class="beaker-label text-xl">The "Start" Cup</div>
-            <div id="liquid-main" class="liquid h-1/2"></div>
-        </div>
-
-        <!-- Target Containers (Visual targets) -->
-        <div id="target-tall" class="container-glass w-16 h-80 border-sky-200/50 flex flex-col justify-end opacity-60">
-            <div class="beaker-label">The Tall Cup</div>
+        <!-- Target Containers -->
+        <div id="target-tall" class="container-glass border-sky-200/50 flex flex-col justify-end opacity-60">
+            <div class="beaker-label">Tall Cup</div>
             <div id="liquid-tall" class="liquid h-0"></div>
         </div>
 
-        <div id="target-wide" class="container-glass w-64 h-32 border-sky-200/50 flex flex-col justify-end opacity-60">
-            <div class="beaker-label">The Wide Cup</div>
+        <!-- Source Beaker (Middle) -->
+        <div id="beaker-main" class="container-glass flex flex-col justify-end shadow-xl cursor-grab active:cursor-grabbing" draggable="true">
+            <div class="beaker-label font-black text-lg">Start</div>
+            <div id="liquid-main" class="liquid h-1/2"></div>
+        </div>
+
+        <div id="target-wide" class="container-glass border-sky-200/50 flex flex-col justify-end opacity-60">
+            <div class="beaker-label">Wide Cup</div>
             <div id="liquid-wide" class="liquid h-0"></div>
         </div>
+    </main>
 
-    </div>
-
-    <!-- Decision UI (Hidden until pouring is done) -->
-    <div id="decision-ui" class="hidden flex flex-col items-center gap-6 mb-12 animate-bounce">
-        <h2 class="text-2xl font-bold text-sky-900 text-center">Is there more, less, or the same amount of juice now?</h2>
-        <div class="flex gap-4">
-            <button onclick="checkAnswer('more')" class="px-8 py-4 bg-red-400 hover:bg-red-500 text-white font-black rounded-2xl shadow-lg transition-transform active:scale-95">MORE!</button>
-            <button onclick="checkAnswer('same')" class="px-8 py-4 bg-green-500 hover:bg-green-600 text-white font-black rounded-2xl shadow-lg transition-transform active:scale-95">THE SAME</button>
-            <button onclick="checkAnswer('less')" class="px-8 py-4 bg-blue-400 hover:bg-blue-500 text-white font-black rounded-2xl shadow-lg transition-transform active:scale-95">LESS!</button>
+    <!-- Footer Area (Decision UI) -->
+    <footer class="w-full shrink-0 min-h-[120px] flex items-center justify-center">
+        <div id="decision-ui" class="hidden flex flex-col items-center gap-3 animate-bounce">
+            <h2 class="text-lg md:text-xl font-bold text-sky-900 text-center">Is there more, less, or the same?</h2>
+            <div class="flex gap-2">
+                <button onclick="checkAnswer('more')" class="px-4 py-2 bg-red-400 hover:bg-red-500 text-white font-black rounded-xl shadow-md text-sm transition-transform active:scale-95">MORE!</button>
+                <button onclick="checkAnswer('same')" class="px-4 py-2 bg-green-500 hover:bg-green-600 text-white font-black rounded-xl shadow-md text-sm transition-transform active:scale-95">SAME</button>
+                <button onclick="checkAnswer('less')" class="px-4 py-2 bg-blue-400 hover:bg-blue-500 text-white font-black rounded-xl shadow-md text-sm transition-transform active:scale-95">LESS!</button>
+            </div>
         </div>
-    </div>
+    </footer>
 
     <!-- Feedback Message -->
     <div id="feedback" class="fixed inset-0 flex items-center justify-center bg-black/40 hidden z-[100]">
-        <div class="bg-white p-8 rounded-3xl text-center max-w-sm shadow-2xl mx-4">
-            <div id="feedback-emoji" class="text-6xl mb-4">🌟</div>
-            <h3 id="feedback-title" class="text-3xl font-bold mb-2">Great Thinking!</h3>
-            <p id="feedback-text" class="text-gray-600 mb-6">Even though it looks taller, the amount of juice didn't change.</p>
+        <div class="bg-white p-6 rounded-3xl text-center max-w-xs shadow-2xl mx-4">
+            <div id="feedback-emoji" class="text-5xl mb-3">🌟</div>
+            <h3 id="feedback-title" class="text-2xl font-bold mb-1">Great Thinking!</h3>
+            <p id="feedback-text" class="text-sm text-gray-600 mb-4">Even though it looks taller, the amount of juice didn't change.</p>
             <button onclick="resetGame()" class="w-full py-3 bg-sky-600 text-white font-bold rounded-xl hover:bg-sky-700">Play Again</button>
         </div>
     </div>
@@ -128,12 +171,20 @@
         const liquidMain = document.getElementById('liquid-main');
         const decisionUI = document.getElementById('decision-ui');
         const feedback = document.getElementById('feedback');
+        const volumeSlider = document.getElementById('volume-slider');
+        const volumeDisplay = document.getElementById('volume-display');
         
         let currentTarget = null;
         let isPoured = false;
-        const TOTAL_VOLUME = 50; // Percentage of the main beaker
+        let startVolume = 50;
 
-        // Drag and Drop Logic
+        volumeSlider.addEventListener('input', (e) => {
+            if (isPoured) return;
+            startVolume = parseInt(e.target.value);
+            volumeDisplay.innerText = startVolume + '%';
+            liquidMain.style.height = startVolume + '%';
+        });
+
         beakerMain.addEventListener('dragstart', (e) => {
             if (isPoured) {
                 e.preventDefault();
@@ -167,22 +218,29 @@
 
         // Touch Support
         let touchStartX, touchStartY;
+        let initialLeft, initialTop;
+
         beakerMain.addEventListener('touchstart', (e) => {
             if (isPoured) return;
             const touch = e.touches[0];
-            touchStartX = touch.clientX - beakerMain.offsetLeft;
-            touchStartY = touch.clientY - beakerMain.offsetTop;
+            const rect = beakerMain.getBoundingClientRect();
+            touchStartX = touch.clientX;
+            touchStartY = touch.clientY;
+            initialLeft = rect.left;
+            initialTop = rect.top;
         }, {passive: true});
 
         beakerMain.addEventListener('touchmove', (e) => {
             if (isPoured) return;
             const touch = e.touches[0];
+            const dx = touch.clientX - touchStartX;
+            const dy = touch.clientY - touchStartY;
+            
             beakerMain.style.position = 'fixed';
-            beakerMain.style.left = (touch.clientX - touchStartX) + 'px';
-            beakerMain.style.top = (touch.clientY - touchStartY) + 'px';
+            beakerMain.style.left = (initialLeft + dx) + 'px';
+            beakerMain.style.top = (initialTop + dy) + 'px';
             beakerMain.classList.add('dragging');
             
-            // Check collision with targets
             checkTouchCollision(touch.clientX, touch.clientY);
         }, {passive: true});
 
@@ -223,26 +281,26 @@
         function pourLiquid(target) {
             isPoured = true;
             currentTarget = target;
+            volumeSlider.disabled = true;
             
-            // Visual pouring effect
             liquidMain.style.height = '0%';
             target.style.opacity = '1';
             
-            // Calculate new height based on container proportions
-            // The "Main" is 128px wide.
-            // Tall is 64px wide (half as wide, so double height)
-            // Wide is 256px wide (double as wide, so half height)
             let newHeight;
             if (target.id === 'target-tall') {
-                newHeight = 80; // Looks much fuller
+                // Width ratio Main(100)/Tall(50) = 2x height
+                // Height ratio Main(180)/Tall(240) = 0.75x height
+                newHeight = 2 * 0.75 * startVolume; 
             } else {
-                newHeight = 25; // Looks much shallower
+                // Width ratio Main(100)/Wide(200) = 0.5x height
+                // Height ratio Main(180)/Wide(100) = 1.8x height
+                newHeight = 0.5 * 1.8 * startVolume;
             }
 
             const targetLiquid = target.querySelector('.liquid');
             
             setTimeout(() => {
-                targetLiquid.style.height = newHeight + '%';
+                targetLiquid.style.height = Math.min(newHeight, 95) + '%';
                 createSplash(target);
                 showDecisionUI();
             }, 300);
@@ -253,12 +311,12 @@
 
         function createSplash(target) {
             const rect = target.getBoundingClientRect();
-            for(let i=0; i<5; i++) {
+            for(let i=0; i<8; i++) {
                 const splash = document.createElement('div');
                 splash.className = 'splash-effect';
                 splash.style.left = (Math.random() * rect.width) + 'px';
                 splash.style.top = '0px';
-                splash.style.width = (Math.random() * 10 + 5) + 'px';
+                splash.style.width = (Math.random() * 8 + 4) + 'px';
                 splash.style.height = splash.style.width;
                 target.appendChild(splash);
                 setTimeout(() => splash.remove(), 500);
@@ -277,7 +335,7 @@
             if (answer === 'same') {
                 emoji.innerText = '🌟';
                 title.innerText = 'Exactly!';
-                text.innerText = "You're right! No matter what the cup looks like, we didn't add any or take any away. It's the same amount!";
+                text.innerText = "You're right! No matter what the cup looks like, we didn't add any or take any away. It's the same amount of juice!";
             } else {
                 emoji.innerText = '🧐';
                 title.innerText = 'Not Quite!';
@@ -290,7 +348,9 @@
         function resetGame() {
             isPoured = false;
             currentTarget = null;
-            liquidMain.style.height = '50%';
+            volumeSlider.disabled = false;
+            
+            liquidMain.style.height = startVolume + '%';
             beakerMain.style.opacity = '1';
             
             document.querySelectorAll('.liquid').forEach(l => {
@@ -307,4 +367,3 @@
     </script>
 </body>
 </html>
-
